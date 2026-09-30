@@ -51,4 +51,4 @@ erDiagram
 - Драйвер — вбудований `node:sqlite` (`DatabaseSync`), Node ≥ 24 (ADR-0001); `INTEGER` ↔ JS `number`, для
   значень, що виходять за межі `Number.MAX_SAFE_INTEGER`, — `setReadBigInts` на рівні statement за потреби.
 - Ролі та статуси зберігаються текстом (`users.role`, `tickets.status`, `tickets.priority`), обмеження —
-  `CHECK`-констрейнт, а не окремі таблиці-довідники.
+  `CHECK`-констрейнт, а не окремі таблиці-довідникии.
