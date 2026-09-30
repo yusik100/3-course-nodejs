@@ -1,0 +1,3 @@
+-- Схема БД Task Tracker API — ЗАГЛУСТКА.
+-- Специфікація: docs/er-diagram.md (users, tickets, ticket_comments; CHECK-обмеження; FK RESTRICT/CASCADE).
+-- Статус: наступна ітерація — CREATE TABLE, індекси, міграції.
