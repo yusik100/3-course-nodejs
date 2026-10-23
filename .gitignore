@@ -15,6 +15,11 @@ npm-debug.log*
 .env.*
 !.env.example
 
+# Local SQLite database
+*.db
+*.db-wal
+*.db-shm
+
 # Tests / coverage
 coverage/
 

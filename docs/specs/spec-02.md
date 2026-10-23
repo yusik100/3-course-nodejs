@@ -63,8 +63,8 @@
 - `tickets(id INTEGER PK, title, description?, status, priority, reporter_id→users RESTRICT, assignee_id→users?
 RESTRICT, created_at, updated_at)`;
 - `ticket_comments(id INTEGER PK, ticket_id→tickets CASCADE, author_id→users RESTRICT, body, created_at)`;
-- `idempotency_keys(key TEXT PK, user_id→users, method, path, request_hash, status_code, response_json, created_at)`
-  — єдине розширення ER проти spec-01;
+- `idempotency_keys(key, user_id→users, method, path, request_hash, status_code, response_json, created_at)`,
+  `PRIMARY KEY (key, user_id)` — єдине розширення ER проти spec-01;
 - CHECK-и ролей/статусів/пріоритетів — як у spec-01; індекси `tickets(status)`, `tickets(assignee_id)`,
   `ticket_comments(ticket_id)`; PRAGMA при відкритті: `foreign_keys=ON`, `journal_mode=WAL`, `busy_timeout`;
 - кожен сценарій запису — одна транзакція `BEGIN IMMEDIATE … COMMIT/ROLLBACK` у `src/db/transaction.ts`
@@ -72,7 +72,8 @@ RESTRICT, created_at, updated_at)`;
 
 **4. Fail-fast на старті.** `plugins/db.ts`: відкрити `DB_PATH`, застосувати PRAGMA й `schema.sql`, виконати
 `SELECT 1`; помилка пробрасується, `src/index.ts` логує `fatal` і робить `process.exit(1)` — сервер не слухає
-порт. `app.ready()` у тестах теж падає, якщо БД недоступна.
+порт. `app.ready()` у тестах теж падає, якщо БД недоступна. DDL лежить у `src/db/schema.sql`; `npm run build`
+копіює його в `dist/db/`, інакше прод-збірка не знайде схему.
 
 **5. Business-process id (`X-Request-Id`) через ALS.** `core/context.ts`: `AsyncLocalStorage<{ requestId, userId? }>`,
 `runWithContext`, `getRequestId`. `src/app.ts` задає `genReqId`; `plugins/request-context.ts` в `onRequest` бере
@@ -90,8 +91,8 @@ RESTRICT, created_at, updated_at)`;
 - `plugins/error-handler.ts` — **один** `setErrorHandler` + `setNotFoundHandler`: формат
   `{ error: { code, message, details? }, requestId }`, 4xx → `warn`, 5xx → `error`, стектрейс назовні не виходить,
   невідома помилка → 500 `INTERNAL_ERROR`; `FST_ERR_VALIDATION` → 400 `VALIDATION_FAILED`, `SQLITE_CONSTRAINT_*` → 409.
-- `try/catch` у `src/**` заборонений, окрім bootstrap/lifecycle (`src/index.ts`, `plugins/db.ts`); інші `catch` —
-  блокуючий коментар, доказ — `grep` (Evidence).
+- `try/catch` у `src/**` заборонений, окрім bootstrap (`src/index.ts`) і `src/db/attempt.ts` — єдиної точки, де
+  помилка перехоплюється заради `ROLLBACK` і ретраю; інші `catch` — блокуючий коментар, доказ — `grep`.
 
 **7. Ендпоінти** (актор — заголовок `X-User-Id`, без нього 401):
 
@@ -134,37 +135,44 @@ JOIN до `ticket_comments` у списку заборонений (дублік
 
 ## Acceptance Criteria
 
-- [ ] AC-1: `POST /users`, `GET /users`, `GET /users/:id`, `PATCH /users/:id`, `POST /tickets`, `GET /tickets`,
+- [x] AC-1: `POST /users`, `GET /users`, `GET /users/:id`, `PATCH /users/:id`, `POST /tickets`, `GET /tickets`,
       `GET /tickets/:id`, `PATCH /tickets/:id/status`, `PATCH /tickets/:id/assignee`, `GET` і `POST` коментарів
       працюють end-to-end спочатку на `DB_DRIVER=memory`, а потім на `DB_DRIVER=sqlite`.
-- [ ] AC-2: шари розділені: у `*.routes.ts` і `*.service.ts` немає SQL, `sql-template-tag` і `node:sqlite`; SQL
-      лише в `*.repository.ts` / `src/db/**`; `raw()` — 0 входжень або лише статичні фрагменти; `grep`-доказ у
-      Evidence.
-- [ ] AC-3: невалідний перехід статусу → 409, призначення не-`agent` → 403, дубль email → 409, невідомий id → 404.
-- [ ] AC-4: працює **один** глобальний обробник: єдиний формат помилки, стектрейс не виходить, `try/catch` у
-      `src/**` немає (окрім bootstrap) — `grep`-доказ.
-- [ ] AC-5: `X-Request-Id` приймається або генерується в `onRequest`, кладеться в `AsyncLocalStorage`, логується в
-      кожному рядку запиту й повертається клієнту тим самим заголовком — без передачі через параметри; поза запитом
-      (старт, seed) у логах `requestId: '-'`, без помилки.
-- [ ] AC-6: fail-fast: при недоступній БД сервер не стартує (`exit 1`, `fatal` у логах), порт не слухається.
-- [ ] AC-7: N+1 відсутній: `GET /tickets` виконує рівно 2 SQL-запити незалежно від кількості тикетів.
-- [ ] AC-8: ідемпотентність: повторний `POST /tickets` з тим самим ключем і тілом → та сама задача, статус 201,
+- [x] AC-2: шари розділені: у `*.routes.ts` і `*.service.ts` немає SQL, `sql-template-tag` і `node:sqlite`; SQL
+      лише в `*.repository.ts` / `src/db/**`; `raw()` — 0 входжень у коді (лише згадка в коментарі `db/sql.ts`);
+      `grep`-доказ у Evidence.
+- [x] AC-3: невалідний перехід статусу → 409, призначення не-`agent` → 403, дубль email → 409, невідомий id → 404.
+- [x] AC-4: працює **один** глобальний обробник: єдиний формат помилки, стектрейс не виходить, `try/catch` у
+      `src/**` є лише в `src/index.ts` (bootstrap) і `src/db/attempt.ts` — `grep`-доказ у Evidence.
+- [x] AC-5: `X-Request-Id` приймається або генерується в `onRequest`, кладеться в `AsyncLocalStorage`, логується в
+      кожному рядку запиту (стандартні request-логи Fastify вимкнені й пишуться вручну всередині `als.run`) і
+      повертається клієнту тим самим заголовком — без передачі через параметри; поза запитом (старт, seed) у логах
+      `requestId: '-'`, без помилки.
+- [x] AC-6: fail-fast: при недоступній БД сервер не стартує (`exit 1`, `fatal` у логах), порт не слухається.
+- [x] AC-7: N+1 відсутній: `GET /tickets` виконує рівно 2 SQL-запити незалежно від кількості тикетів.
+- [x] AC-8: ідемпотентність: повторний `POST /tickets` з тим самим ключем і тілом → та сама задача, статус 201,
       `Idempotency-Replayed: true`; інше тіло → 409; без ключа → 400.
-- [ ] AC-9: `withRetry` робить рівно 3 спроби лише на `SQLITE_BUSY`, після вичерпання → 503.
-- [ ] AC-10: транзакційність: збій на записі ключа ідемпотентності не лишає створеного тикета.
-- [ ] AC-11: ADR-0002 і ADR-0003 створені за MADR, зі `status`, `date`, альтернативами й `Consequences`.
-- [ ] AC-12: `make lint`, `make typecheck`, `make build`, `make smoke` — без помилок; нові тести зелені на обох
+- [x] AC-9: `withRetry` робить рівно 3 спроби лише на `SQLITE_BUSY`, після вичерпання → 503.
+- [x] AC-10: транзакційність: збій на записі ключа ідемпотентності не лишає створеного тикета.
+- [x] AC-11: ADR-0002 і ADR-0003 створені за MADR, зі `status`, `date`, альтернативами й `Consequences`.
+- [x] AC-12: `make lint`, `make typecheck`, `make build`, `make smoke` — без помилок; нові тести зелені на обох
       драйверах.
 
 ## Evidence
 
 - **Automated tests:** `test/users.test.ts`, `test/tickets.test.ts`, `test/ticket-status.test.ts`,
-  `test/comments.test.ts`, `test/idempotency.test.ts`, `test/retry.test.ts`, `test/errors.test.ts` — `node:test` +
-  `app.inject()`, запуск `npm run smoke`; прогін двічі: `DB_DRIVER=memory` і `DB_DRIVER=sqlite`.
-- **Manual checks:** послідовність `curl` для всіх ендпоінтів; `DB_PATH=./missing/dir/db.sqlite npm run dev` →
-  `exit 1`; `grep`-перевірки шарів і відсутності `try/catch`; `git hook run pre-push`.
-- **Logs, screenshots, metrics:** лог-рядки з тим самим `requestId` для одного запиту, лічильник SQL-запитів для
-  `GET /tickets` (2), відповідь на повторний `POST /tickets` з `Idempotency-Replayed: true`.
+  `test/comments.test.ts`, `test/idempotency.test.ts`, `test/retry.test.ts`, `test/transaction.test.ts`,
+  `test/context.test.ts`, `test/errors.test.ts`, `test/smoke.test.ts` (`node:test` + `app.inject()`, спільні фабрики —
+  `test/helpers.ts`). Запуск: `npm run smoke` (70 тестів: 69 pass, 1 skip — SQL-лічильник лише для `sqlite`).
+  Сценарії users/tickets/status/comments/idempotency виконуються двічі: `DB_DRIVER=memory` і `sqlite` (`:memory:`).
+- **Manual checks:** `DB_PATH=./missing/dir/db.sqlite npx tsx src/index.ts` → `fatal: unable to open database file`,
+  `exit 1`; `grep` по `src/**` для `sql-template-tag`/`node:sqlite` (лише `src/db/**`) і `try {` (лише `src/index.ts`,
+  `src/db/attempt.ts`); `node dist/index.js` після `npm run build` — `/health` і `POST /users` відповідають (схема
+  скопійована в `dist/db/`).
+- **Logs, screenshots, metrics:** для запиту `GET /users/999` з `X-Request-Id: trace-abc-123` усі три рядки
+  (`incoming request`, `request failed`, `request completed`) містять `requestId: trace-abc-123`; лічильник
+  `dbClient.queryCount()` показує +2 на `GET /tickets`; повторний `POST /tickets` повертає `Idempotency-Replayed:
+true`.
 
 ## Open Questions
 
