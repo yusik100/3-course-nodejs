@@ -70,10 +70,12 @@ RESTRICT, created_at, updated_at)`;
 - кожен сценарій запису — одна транзакція `BEGIN IMMEDIATE … COMMIT/ROLLBACK` у `src/db/transaction.ts`
   (`DatabaseSync`).
 
-**4. Fail-fast на старті.** `plugins/db.ts`: відкрити `DB_PATH`, застосувати PRAGMA й `schema.sql`, виконати
-`SELECT 1`; помилка пробрасується, `src/index.ts` логує `fatal` і робить `process.exit(1)` — сервер не слухає
-порт. `app.ready()` у тестах теж падає, якщо БД недоступна. DDL лежить у `src/db/schema.sql`; `npm run build`
-копіює його в `dist/db/`, інакше прод-збірка не знайде схему.
+**4. Fail-fast та ініціалізація БД.** БД відкриває composition root `src/app.ts` (не плагін): `openSqliteClient(DB_PATH)`
+створює `DatabaseSync`, застосовує PRAGMA (`foreign_keys`, `journal_mode=WAL`, `busy_timeout`), виконує `schema.sql` і
+перевіряє `SELECT 1` — усе до `listen`. Помилка пробрасується, `src/index.ts` пише `fatal` і робить `process.exit(1)` —
+порт не слухається; `app.ready()` у тестах теж падає. `plugins/db.ts` БД не відкриває: лише реєструє декоратор
+`dbClient` і закриває з'єднання в `onClose` (Fastify інкапсулює декоратори плагінів, а `dbClient` потрібен і роутам,
+і тестам). DDL лежить у `src/db/schema.sql`; `npm run build` копіює його в `dist/db/`.
 
 **5. Business-process id (`X-Request-Id`) через ALS.** `core/context.ts`: `AsyncLocalStorage<{ requestId, userId? }>`,
 `runWithContext`, `getRequestId`. `src/app.ts` задає `genReqId`; `plugins/request-context.ts` в `onRequest` бере
