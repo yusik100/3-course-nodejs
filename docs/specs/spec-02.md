@@ -111,10 +111,13 @@ RESTRICT, created_at, updated_at)`;
 `IDEMPOTENCY_KEY_REUSED`; без ключа → 400; конкурентний дубль ловиться UNIQUE-констрейнтом. Рішення про replay — у
 сервісі, читання/запис ключа — лише в репозиторії.
 
-**9. Ретраї.** `src/db/retry.ts` — власний декоратор `withRetry(fn, { attempts: 3, backoffMs })` (працює і для
-sync, і для async): повторює **тільки** `SQLITE_BUSY`/`SQLITE_LOCKED`, інші помилки одразу назовні; обгортає
-**цілу транзакцію** в sqlite-репозиторіях, не окремі statement'и і не неідемпотентні операції поза транзакцією;
-після 3-ї невдачі → `ServiceUnavailableError` 503.
+**9. Ретраї.** `src/db/retry.ts` — власний декоратор `withRetry(fn, { attempts: 3, backoffMs })`, **синхронний**:
+повторює **тільки** `SQLITE_BUSY`/`SQLITE_LOCKED`, інші помилки одразу назовні; обгортає **цілу транзакцію** в
+sqlite-репозиторіях, не окремі statement'и і не неідемпотентні операції поза транзакцією; після 3-ї невдачі →
+`ServiceUnavailableError` 503. Пауза між спробами — `Atomics.wait` (доступ до `node:sqlite` і так синхронний).
+Асинхронну гілку (`overload` для `() => Promise<T>`, пауза через `setTimeout`) **свідомо відкладено**: усі
+репозиторії синхронні, а `Atomics.wait` в async-коді блокував би event loop. Повернемося до неї, коли з'явиться
+async-драйвер БД або зовнішній виклик усередині сценарію.
 
 **10. Відсутність N+1.** `GET /tickets` — рівно **2 запити**: `tickets JOIN users AS reporter … LEFT JOIN users
 AS assignee …` + `ticket_comments WHERE ticket_id IN (…)` (групування в сервісі); `GET /tickets/:id` — 2 запити.
@@ -129,7 +132,8 @@ JOIN до `ticket_comments` у списку заборонений (дублік
 
 - **Explicitly excluded:** JWT і хешування пароля, RBAC-гарди, видалення користувачів/тикетів, редагування
   коментарів, пошук і пагінація, історія подій, міграційний фреймворк, seed для продакшену, кеш, метрики,
-  трейсинг, пул з'єднань, retry на інші класи помилок, зміна `standards/**` і скриптів `package.json`.
+  трейсинг, пул з'єднань, retry на інші класи помилок, async-варіант `withRetry` (sync-репозиторії цього не
+  потребують), зміна `standards/**` і скриптів `package.json`.
 - **Dependencies or contracts that must not change:** модель зі spec-01 (крім `idempotency_keys`), семантика
   статусів, `X-User-Id` як актор, `INTEGER PRIMARY KEY`, `node:sqlite` як драйвер, цілі `Makefile`, формат ADR.
 

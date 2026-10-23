@@ -2,7 +2,8 @@
  * Ретраї для зайнятої БД (spec-02, §9).
  *
  * `withRetry` повторює **лише** SQLITE_BUSY / SQLITE_LOCKED і обгортає цілу транзакцію, а не окремі statement'и
- * (інакше повтор неідемпотентного INSERT створив би дубль). Працює і для sync, і для async-функцій.
+ * (інакше повтор неідемпотентного INSERT створив би дубль). Синхронний: усі виклики — `DatabaseSync`, async-гілка
+ * відкладена (spec-02, §9).
  */
 
 import { ServiceUnavailableError } from '../core/errors.js';
