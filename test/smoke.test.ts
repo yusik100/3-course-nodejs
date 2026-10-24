@@ -3,7 +3,7 @@ import { after, before, describe, it } from 'node:test';
 
 import { buildApp } from '../src/app.js';
 
-const app = buildApp({ logger: false });
+const app = buildApp({ logger: false, config: { dbDriver: 'memory', dbPath: ':memory:' } });
 
 describe('smoke: застосунок піднімається і відповідає', () => {
   before(async () => {
@@ -16,10 +16,11 @@ describe('smoke: застосунок піднімається і відпові
 
   it('GET /health → 200 зі status=ok', async () => {
     const response = await app.inject({ method: 'GET', url: '/health' });
-    const body = response.json<{ status: string; uptime: number }>();
+    const body = response.json<{ status: string; driver: string; uptime: number }>();
 
     assert.equal(response.statusCode, 200);
     assert.equal(body.status, 'ok');
+    assert.equal(body.driver, 'memory');
     assert.equal(typeof body.uptime, 'number');
   });
 });
