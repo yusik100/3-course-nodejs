@@ -9,6 +9,7 @@ erDiagram
     USERS ||--o{ TICKETS : "assignee (nullable)"
     USERS ||--o{ TICKET_COMMENTS : "author"
     TICKETS ||--o{ TICKET_COMMENTS : "має"
+    USERS ||--o{ IDEMPOTENCY_KEYS : "створює ключі"
 
     USERS {
         integer id PK
@@ -39,6 +40,17 @@ erDiagram
         text body "1..5000"
         text created_at
     }
+
+    IDEMPOTENCY_KEYS {
+        text key PK "у складі PK (key, user_id)"
+        integer user_id PK "users.id, CASCADE"
+        text method
+        text path
+        text request_hash "sha256 канонічного тіла"
+        integer status_code
+        text response_json
+        text created_at
+    }
 ```
 
 ## Примітки
@@ -46,6 +58,9 @@ erDiagram
 - Зв'язок `users → tickets` задіяний двічі: `reporter_id` (обов'язковий) і `assignee_id` (опційний).
 - `ticket_comments` видаляються каскадом разом із задачею; користувача, на якого є посилання, видалити не можна
   (`RESTRICT`).
+- `idempotency_keys` додано в ітерації 2 (spec-02, §8) для ідемпотентного створення тикетів: складений ключ
+  `(key, user_id)`, зберігається `request_hash` і серіалізована відповідь; ключ видаляється разом із користувачем
+  (`CASCADE`).
 - Тип `id` — `INTEGER PRIMARY KEY` у всіх таблицях (вирішено в spec-01, 2026-09-30; альтернативу UUID/TEXT
   відхилено).
 - Драйвер — вбудований `node:sqlite` (`DatabaseSync`), Node ≥ 24 (ADR-0001); `INTEGER` ↔ JS `number`, для
