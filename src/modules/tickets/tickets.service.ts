@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 
 import type { TicketStatus } from '../../core/domain.js';
+import { getLogger } from '../../core/context.js';
 import {
   ConflictError,
   ForbiddenError,
@@ -79,12 +80,15 @@ export const createTicketsService = ({ tickets, users }: TicketsServiceDeps): Ti
       command: CreateTicketCommand,
       idempotencyKey: string,
     ): CreateTicketResult => {
+      const logger = getLogger();
       requireActor(actorId);
 
       const title = command.title.trim();
       const description = command.description?.trim() ?? '';
       const priority = command.priority ?? 'normal';
       const normalizedDescription = description === '' ? null : description;
+
+      logger.debug({ actorId, title, priority }, 'ticket creation requested');
 
       const result = tickets.createTicketIdempotent({
         key: idempotencyKey,
@@ -94,6 +98,10 @@ export const createTicketsService = ({ tickets, users }: TicketsServiceDeps): Ti
       });
 
       if (result.kind === 'key-reused') {
+        logger.warn(
+          { actorId, idempotencyKey },
+          'ticket creation rejected: idempotency key reused with another body',
+        );
         throw new ConflictError(
           'IDEMPOTENCY_KEY_REUSED',
           'Idempotency-Key was already used with a different request body',
@@ -101,39 +109,74 @@ export const createTicketsService = ({ tickets, users }: TicketsServiceDeps): Ti
         );
       }
 
+      logger.info(
+        {
+          ticketId: result.ticket.id,
+          actorId,
+          status: result.ticket.status,
+          priority: result.ticket.priority,
+          replayed: result.kind === 'replayed',
+        },
+        result.kind === 'replayed' ? 'ticket replayed' : 'ticket created',
+      );
+
       return { ticket: result.ticket, replayed: result.kind === 'replayed' };
     },
 
     get: (id: number): TicketDetails => {
+      const logger = getLogger();
       const ticket = tickets.findWithAuthors(id);
-      if (ticket === undefined) throw new NotFoundError(`Ticket ${id} not found`, { id });
-      return { ...ticket, comments: tickets.listComments(id) };
+      if (ticket === undefined) {
+        logger.warn({ ticketId: id }, 'ticket lookup failed: not found');
+        throw new NotFoundError(`Ticket ${id} not found`, { id });
+      }
+
+      const comments = tickets.listComments(id);
+      logger.debug({ ticketId: id, comments: comments.length }, 'ticket loaded');
+      return { ...ticket, comments };
     },
 
     list: (filter: TicketFilter): TicketListItem[] => {
       const items = tickets.listWithAuthors(filter);
       const counts = tickets.countComments(items.map((item) => item.id));
+      getLogger().debug(
+        { count: items.length, status: filter.status, assigneeId: filter.assigneeId },
+        'tickets listed',
+      );
       return items.map((item) => ({ ...item, commentsCount: counts.get(item.id) ?? 0 }));
     },
 
     listComments: (ticketId: number): readonly TicketComment[] => {
       requireTicket(ticketId);
-      return tickets.listComments(ticketId);
+      const comments = tickets.listComments(ticketId);
+      getLogger().debug({ ticketId, count: comments.length }, 'ticket comments listed');
+      return comments;
     },
 
     addComment: (actorId: number, ticketId: number, body: string): TicketComment => {
+      const logger = getLogger();
       requireActor(actorId);
       requireTicket(ticketId);
 
       const text = body.trim();
-      if (text.length === 0) throw new ValidationError('Comment body must not be empty');
+      if (text.length === 0) {
+        logger.warn({ actorId, ticketId }, 'comment creation rejected: empty body');
+        throw new ValidationError('Comment body must not be empty');
+      }
 
-      return tickets.addComment({ ticketId, authorId: actorId, body: text });
+      const comment = tickets.addComment({ ticketId, authorId: actorId, body: text });
+      logger.info({ commentId: comment.id, ticketId, authorId: actorId }, 'comment added');
+      return comment;
     },
 
     changeStatus: (id: number, status: TicketStatus): Ticket => {
+      const logger = getLogger();
       const current = requireTicket(id);
       if (!ALLOWED_TRANSITIONS[current.status].includes(status)) {
+        logger.warn(
+          { ticketId: id, from: current.status, to: status },
+          'ticket status change rejected: invalid transition',
+        );
         throw new ConflictError(
           'INVALID_STATUS_TRANSITION',
           `Cannot change status from "${current.status}" to "${status}"`,
@@ -142,22 +185,41 @@ export const createTicketsService = ({ tickets, users }: TicketsServiceDeps): Ti
       }
 
       const updated = tickets.updateStatus(id, status);
-      if (updated === undefined) throw new NotFoundError(`Ticket ${id} not found`, { id });
+      if (updated === undefined) {
+        logger.warn({ ticketId: id, to: status }, 'ticket status change failed: ticket not found');
+        throw new NotFoundError(`Ticket ${id} not found`, { id });
+      }
+
+      logger.info({ ticketId: id, from: current.status, to: status }, 'ticket status changed');
       return updated;
     },
 
     assign: (actorId: number, id: number, assigneeId: number | null): Ticket => {
+      const logger = getLogger();
       const actor = requireActor(actorId);
       if (actor.role !== 'agent') {
+        logger.warn(
+          { actorId, role: actor.role, ticketId: id },
+          'ticket assignment rejected: actor is not an agent',
+        );
         throw new ForbiddenError('Only agents can assign tickets', { actorId, role: actor.role });
       }
       requireTicket(id);
 
       if (assigneeId !== null) {
         const assignee = users.findById(assigneeId);
-        if (assignee === undefined)
+        if (assignee === undefined) {
+          logger.warn(
+            { actorId, ticketId: id, assigneeId },
+            'ticket assignment rejected: assignee not found',
+          );
           throw new NotFoundError(`User ${assigneeId} not found`, { id: assigneeId });
+        }
         if (assignee.role !== 'agent') {
+          logger.warn(
+            { actorId, ticketId: id, assigneeId },
+            'ticket assignment rejected: assignee is not an agent',
+          );
           throw new ConflictError('ASSIGNEE_NOT_AGENT', `User ${assigneeId} is not an agent`, {
             id: assigneeId,
           });
@@ -165,7 +227,12 @@ export const createTicketsService = ({ tickets, users }: TicketsServiceDeps): Ti
       }
 
       const updated = tickets.updateAssignee(id, assigneeId);
-      if (updated === undefined) throw new NotFoundError(`Ticket ${id} not found`, { id });
+      if (updated === undefined) {
+        logger.warn({ ticketId: id, assigneeId }, 'ticket assignment failed: ticket not found');
+        throw new NotFoundError(`Ticket ${id} not found`, { id });
+      }
+
+      logger.info({ ticketId: id, assigneeId, actorId }, 'ticket assignee changed');
       return updated;
     },
   };

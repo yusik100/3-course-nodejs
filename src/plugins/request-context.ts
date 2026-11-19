@@ -19,7 +19,9 @@ export const registerRequestContext = (app: FastifyInstance): void => {
   app.addHook('onRequest', (request, reply, done) => {
     const userId = parseActorId(request.headers['x-user-id']);
     const context: RequestContext =
-      userId === undefined ? { requestId: request.id } : { requestId: request.id, userId };
+      userId === undefined
+        ? { requestId: request.id, logger: request.log }
+        : { requestId: request.id, userId, logger: request.log };
 
     reply.header(REQUEST_ID_HEADER, request.id);
     runWithContext(context, () => {

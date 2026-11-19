@@ -169,7 +169,7 @@ JOIN до `ticket_comments` у списку заборонений (дублік
 - **Automated tests:** `test/users.test.ts`, `test/tickets.test.ts`, `test/ticket-status.test.ts`,
   `test/comments.test.ts`, `test/idempotency.test.ts`, `test/retry.test.ts`, `test/transaction.test.ts`,
   `test/context.test.ts`, `test/errors.test.ts`, `test/smoke.test.ts` (`node:test` + `app.inject()`, спільні фабрики —
-  `test/helpers.ts`). Запуск: `npm run smoke` (70 тестів: 69 pass, 1 skip — SQL-лічильник лише для `sqlite`).
+  `test/helpers.ts`). Запуск: `npm run smoke` (74 тести: 73 pass, 1 skip — SQL-лічильник лише для `sqlite`).
   Сценарії users/tickets/status/comments/idempotency виконуються двічі: `DB_DRIVER=memory` і `sqlite` (`:memory:`).
 - **Manual checks:** `DB_PATH=./missing/dir/db.sqlite npx tsx src/index.ts` → `fatal: unable to open database file`,
   `exit 1`; `grep` по `src/**` для `sql-template-tag`/`node:sqlite` (лише `src/db/**`) і `try {` (лише `src/index.ts`,

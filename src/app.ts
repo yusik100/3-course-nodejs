@@ -22,8 +22,14 @@ import { registerDatabase } from './plugins/db.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
 import { registerRequestContext } from './plugins/request-context.js';
 
+/** Те саме, що `FastifyLoggerStreamDestination`: дозволяє тестам перехоплювати реальні JSON-рядки pino. */
+export type LogStream = {
+  write(message: string): void;
+};
+
 export type BuildAppOptions = {
   readonly logger?: boolean;
+  readonly logStream?: LogStream;
   readonly config?: Partial<AppConfig>;
 };
 
@@ -39,12 +45,17 @@ const readHeader = (value: string | string[] | undefined): string | undefined =>
  */
 export const buildApp = ({
   logger = true,
+  logStream,
   config: overrides = {},
 }: BuildAppOptions = {}): FastifyInstance => {
   const config: AppConfig = { ...loadConfig(), ...overrides };
 
   const fastifyLogger: FastifyServerOptions['logger'] = logger
-    ? { level: config.logLevel, mixin: () => ({ requestId: getRequestId() ?? '-' }) }
+    ? {
+        level: config.logLevel,
+        mixin: () => ({ requestId: getRequestId() ?? '-' }),
+        ...(logStream === undefined ? {} : { stream: logStream }),
+      }
     : false;
 
   const app = Fastify({
