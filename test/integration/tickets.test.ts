@@ -14,7 +14,7 @@ import {
   DRIVERS,
   type TestTicket,
   type TestUser,
-} from './helpers.js';
+} from '../support/helpers.js';
 
 type TicketListItem = {
   readonly id: number;
@@ -65,7 +65,7 @@ for (const driver of DRIVERS) {
     });
 
     it(
-      'GET /tickets виконує рівно 2 SQL-запити незалежно від кількості тикетів (AC-7)',
+      'GET /tickets виконує рівно 2 SQL-запити для непорожнього списку (AC-7)',
       { skip: driver === 'sqlite' ? false : 'SQL-лічильник існує лише для sqlite' },
       async () => {
         const client = app.dbClient;
@@ -73,6 +73,49 @@ for (const driver of DRIVERS) {
 
         const before = client.queryCount();
         const response = await app.inject({ method: 'GET', url: '/tickets' });
+
+        assert.equal(response.statusCode, 200);
+        assert.equal(client.queryCount() - before, 2);
+      },
+    );
+
+    it(
+      'GET /tickets на порожній БД виконує ≤2 SQL-запити (AC-7)',
+      { skip: driver === 'sqlite' ? false : 'SQL-лічильник існує лише для sqlite' },
+      async () => {
+        const emptyApp = createTestApp('sqlite');
+        await emptyApp.ready();
+
+        try {
+          const client = emptyApp.dbClient;
+          assert.ok(client, 'dbClient має бути присутній при DB_DRIVER=sqlite');
+
+          const before = client.queryCount();
+          const response = await emptyApp.inject({ method: 'GET', url: '/tickets' });
+
+          assert.equal(response.statusCode, 200);
+          assert.ok(client.queryCount() - before <= 2);
+        } finally {
+          await emptyApp.close();
+        }
+      },
+    );
+
+    it(
+      'GET /tickets/:id виконує рівно 2 SQL-запити',
+      { skip: driver === 'sqlite' ? false : 'SQL-лічильник існує лише для sqlite' },
+      async () => {
+        const created = await createTicket(
+          app,
+          reporter.id,
+          { title: 'Query count details' },
+          'tickets-key-5',
+        );
+        const client = app.dbClient;
+        assert.ok(client, 'dbClient має бути присутній при DB_DRIVER=sqlite');
+
+        const before = client.queryCount();
+        const response = await app.inject({ method: 'GET', url: `/tickets/${created.id}` });
 
         assert.equal(response.statusCode, 200);
         assert.equal(client.queryCount() - before, 2);

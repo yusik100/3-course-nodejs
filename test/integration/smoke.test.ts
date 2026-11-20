@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
-import { buildApp } from '../src/app.js';
+import { buildApp } from '../../src/app.js';
 
 const app = buildApp({ logger: false, config: { dbDriver: 'memory', dbPath: ':memory:' } });
 

@@ -11,8 +11,7 @@ npm-еквівалент.
 
 ## 2. Перед пушем — автоматично
 
-`pre-push` → `npm run smoke`, `npm run typecheck` і `npm run build` (не пушимо код, який падає на smoke-тесті,
-не типізується або не збирається).
+`pre-push` → `npm run smoke`, `npm run test:unit`, `npm run typecheck` і `npm run build`.
 
 Прогнати вручну: `git hook run pre-push`.
 
@@ -25,6 +24,9 @@ npm-еквівалент.
 | Типи           | `make typecheck` / `npm run typecheck`              | без виводу, код виходу 0                            |
 | Збірка         | `make build` / `npm run build`                      | створено `dist/index.js` (без тестів)               |
 | Smoke-тест     | `make smoke` / `npm run smoke`                      | `pass 1`, `fail 0`                                  |
+| Усі тести      | `make test` / `npm test`                            | unit + integration + e2e зелені                     |
+| Покриття       | `make coverage` / `npm run coverage`                | звіт line/branch/functions                          |
+| Мутації        | `make mutation` / `npm run mutation`                | HTML-звіт Stryker у `reports/mutation/`             |
 | Запуск         | `npm run dev` + `curl http://localhost:3000/health` | `{"status":"ok",...}`                               |
 | Чисте оточення | `npm ci` на свіжому клоні                           | встановлення без помилок, husky активний            |
 | Вміст коміту   | `git status`                                        | немає `node_modules/`, `dist/`, `.env`, `.husky/_/` |

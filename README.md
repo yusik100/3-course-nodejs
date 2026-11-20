@@ -47,15 +47,15 @@ JWT, хешування пароля й RBAC — наступні ітераці
 
 `details` — опційне поле, `requestId` дублює заголовок `X-Request-Id`.
 
-| HTTP | `code`                                                                                        |
-| ---- | --------------------------------------------------------------------------------------------- |
-| 400  | `VALIDATION_FAILED`                                                                           |
-| 401  | `UNAUTHORIZED`                                                                                |
-| 403  | `FORBIDDEN`                                                                                   |
-| 404  | `NOT_FOUND`                                                                                   |
-| 409  | `EMAIL_TAKEN`, `IDEMPOTENCY_KEY_REUSED`, `INVALID_STATUS_TRANSITION`, `ASSIGNEE_NOT_AGENT`    |
-| 500  | `INTERNAL_ERROR`                                                                              |
-| 503  | `DB_UNAVAILABLE`                                                                              |
+| HTTP | `code`                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------ |
+| 400  | `VALIDATION_FAILED`                                                                        |
+| 401  | `UNAUTHORIZED`                                                                             |
+| 403  | `FORBIDDEN`                                                                                |
+| 404  | `NOT_FOUND`                                                                                |
+| 409  | `EMAIL_TAKEN`, `IDEMPOTENCY_KEY_REUSED`, `INVALID_STATUS_TRANSITION`, `ASSIGNEE_NOT_AGENT` |
+| 500  | `INTERNAL_ERROR`                                                                           |
+| 503  | `DB_UNAVAILABLE`                                                                           |
 
 Повтор `POST /tickets` із тим самим ключем і тим самим тілом повертає збережену відповідь зі статусом 201 і
 заголовком `Idempotency-Replayed: true`; той самий ключ з іншим тілом — 409 `IDEMPOTENCY_KEY_REUSED`.
@@ -81,7 +81,7 @@ JWT, хешування пароля й RBAC — наступні ітераці
 - **Мова:** TypeScript
 - **База даних:** SQLite через вбудований `node:sqlite` (у Node 24 — ще experimental, очікується `ExperimentalWarning`; див. ADR-0001, `docs/decisions/`)
 - **SQL:** сирий SQL через `sql-template-tag` (0 транзитивних залежностей; ADR-0003)
-- **Тести:** `node:test` + `app.inject()`, запуск через `tsx`
+- **Тести:** `node:test` + `tsx`; `unit/` (сервіси на фейках), `integration/` (репозиторії та файловий SQLite), `e2e/` (реальний HTTP + `fetch()`)
 - **Інструменти якості коду:** ESLint (Flat Config), Prettier, Husky, lint-staged
 
 ## Як розпочати роботу
@@ -122,13 +122,14 @@ JWT, хешування пароля й RBAC — наступні ітераці
 ### Команди для якості коду
 
 Git-хуки перевіряють код автоматично: перед комітом для змінених файлів запускаються ESLint і Prettier, перед
-пушем — smoke-тест, перевірка типів і збірка. Ті самі перевірки можна запустити вручну: `npm run smoke`,
-`npm run lint`, `npm run lint:fix`, `npm run format`, `npm run format:check`, `npm run typecheck`
-(або `make smoke`, `make lint`, `make format`, `make typecheck`).
+пушем — smoke, unit-тести, typecheck і build. Ті самі перевірки можна запустити вручну: `npm run smoke`,
+`npm run test:unit`, `npm run lint`, `npm run lint:fix`, `npm run format`, `npm run format:check`,
+`npm run typecheck` (або `make smoke`, `make lint`, `make format`, `make typecheck`).
 
-`npm run smoke` проганяє **всі** тести (`node:test` + `app.inject()`): сценарії користувачів, тикетів, статусів,
-коментарів, ідемпотентності, ретраїв і транзакцій. Більшість наборів виконується двічі — на `DB_DRIVER=memory` і на
-`sqlite` (`:memory:`), тому один і той самий контракт перевіряється на обох драйверах.
+`npm run smoke` — швидкий мінімальний smoke-тест (`GET /health`). Повний набір — `npm test` / `make test`:
+`unit/` (бізнес-правила на ручних фейках), `integration/` (репозиторії та `src/db/**` на реальному файловому SQLite
+у тимчасовій теці) і `e2e/` (реальний HTTP-сервер на `port: 0` + `fetch()`). Покриття гілок — `npm run coverage` /
+`make coverage`; мутаційне тестування — `npm run mutation` / `make mutation` (Stryker, звіт у `reports/mutation/`).
 
 ### Швидкий сценарій через curl
 

@@ -4,8 +4,8 @@
 
 import type { FastifyInstance } from 'fastify';
 
-import { buildApp } from '../src/app.js';
-import type { DbDriver } from '../src/config/env.js';
+import { buildApp } from '../../src/app.js';
+import type { DbDriver } from '../../src/config/env.js';
 
 export const DRIVERS: readonly DbDriver[] = ['memory', 'sqlite'];
 

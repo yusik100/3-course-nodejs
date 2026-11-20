@@ -22,6 +22,8 @@ npm-debug.log*
 
 # Tests / coverage
 coverage/
+reports/
+.stryker-tmp/
 
 # Caches
 .eslintcache

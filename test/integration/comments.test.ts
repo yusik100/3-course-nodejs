@@ -1,5 +1,6 @@
 /**
- * Коментарі (spec-02, §7; AC-1, AC-7).
+ * Коментарі (spec-02, §7; AC-1, AC-7) — integration-рівень.
+ * Кожен тест створює власний тикет і коментарі, тому порядок виконання не має значення.
  */
 
 import assert from 'node:assert/strict';
@@ -7,7 +8,13 @@ import { after, before, describe, it } from 'node:test';
 
 import type { FastifyInstance } from 'fastify';
 
-import { createTestApp, createTicket, createUser, DRIVERS, type TestUser } from './helpers.js';
+import {
+  createTestApp,
+  createTicket,
+  createUser,
+  DRIVERS,
+  type TestUser,
+} from '../support/helpers.js';
 
 type CommentBody = {
   readonly id: number;
@@ -20,32 +27,33 @@ for (const driver of DRIVERS) {
   describe(`comments (${driver})`, () => {
     let app: FastifyInstance;
     let author: TestUser;
-    let ticketId: number;
 
     before(async () => {
       app = createTestApp(driver);
       await app.ready();
       author = await createUser(app);
-      const ticket = await createTicket(
-        app,
-        author.id,
-        { title: 'Needs comments' },
-        'comments-key-1',
-      );
-      ticketId = ticket.id;
     });
 
     after(async () => {
       await app.close();
     });
 
-    it('POST /tickets/:id/comments створює коментар із автором', async () => {
-      const response = await app.inject({
+    const createOwnTicket = async (key: string): Promise<number> => {
+      const ticket = await createTicket(app, author.id, { title: 'Needs comments' }, key);
+      return ticket.id;
+    };
+
+    const postComment = (ticketId: number, body: string) =>
+      app.inject({
         method: 'POST',
         url: `/tickets/${ticketId}/comments`,
         headers: { 'x-user-id': String(author.id) },
-        payload: { body: '  Looking into it  ' },
+        payload: { body },
       });
+
+    it('POST /tickets/:id/comments створює коментар із автором', async () => {
+      const ticketId = await createOwnTicket('comments-key-1');
+      const response = await postComment(ticketId, '  Looking into it  ');
 
       assert.equal(response.statusCode, 201);
       const comment = response.json<CommentBody>();
@@ -56,23 +64,24 @@ for (const driver of DRIVERS) {
     });
 
     it('GET /tickets/:id/comments повертає коментарі за порядком створення', async () => {
-      await app.inject({
-        method: 'POST',
-        url: `/tickets/${ticketId}/comments`,
-        headers: { 'x-user-id': String(author.id) },
-        payload: { body: 'Second comment' },
-      });
+      const ticketId = await createOwnTicket('comments-key-2');
+      await postComment(ticketId, 'First comment');
+      await postComment(ticketId, 'Second comment');
 
       const response = await app.inject({ method: 'GET', url: `/tickets/${ticketId}/comments` });
 
       assert.equal(response.statusCode, 200);
       const comments = response.json<CommentBody[]>();
       assert.equal(comments.length, 2);
-      assert.equal(comments[0]?.body, 'Looking into it');
+      assert.equal(comments[0]?.body, 'First comment');
       assert.equal(comments[1]?.body, 'Second comment');
     });
 
     it('GET /tickets/:id показує коментарі в деталях і лічильник у списку', async () => {
+      const ticketId = await createOwnTicket('comments-key-3');
+      await postComment(ticketId, 'First comment');
+      await postComment(ticketId, 'Second comment');
+
       const details = await app.inject({ method: 'GET', url: `/tickets/${ticketId}` });
       assert.equal(details.json<{ comments: CommentBody[] }>().comments.length, 2);
 
@@ -84,26 +93,18 @@ for (const driver of DRIVERS) {
     });
 
     it('порожній коментар (лише пробіли) → 400 VALIDATION_FAILED', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: `/tickets/${ticketId}/comments`,
-        headers: { 'x-user-id': String(author.id) },
-        payload: { body: '   ' },
-      });
+      const ticketId = await createOwnTicket('comments-key-4');
+      const response = await postComment(ticketId, '   ');
 
       assert.equal(response.statusCode, 400);
       assert.equal(response.json<{ error: { code: string } }>().error.code, 'VALIDATION_FAILED');
     });
 
     it('коментар до невідомого тикета → 404 NOT_FOUND', async () => {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/tickets/999/comments',
-        headers: { 'x-user-id': String(author.id) },
-        payload: { body: 'Ghost' },
-      });
+      const response = await postComment(999, 'Ghost');
 
       assert.equal(response.statusCode, 404);
+      assert.equal(response.json<{ error: { code: string } }>().error.code, 'NOT_FOUND');
     });
   });
 }

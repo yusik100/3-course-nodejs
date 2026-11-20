@@ -14,7 +14,7 @@ import {
   DRIVERS,
   type TestTicket,
   type TestUser,
-} from './helpers.js';
+} from '../support/helpers.js';
 
 const changeStatus = (app: FastifyInstance, actorId: number, ticketId: number, status: string) =>
   app.inject({

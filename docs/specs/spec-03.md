@@ -113,7 +113,8 @@ line/branch/functions, рішення про покращення — за фа�
 ## Evidence
 
 - **Automated tests:** `npm test` двічі поспіль; `npm run smoke`; `npm run test:unit`, `test:integration`, `test:e2e`
-  окремо; `npm run coverage` (таблиця line/branch/functions); `npm run mutation` (`reports/mutation/index.html`).
+  окремо; `npm run coverage` (таблиця line/branch/functions); `npm run mutation`
+  (`reports/mutation/mutation.html`).
 - **Manual checks:** перевірити дерево `test/`, відсутність `.only` і залежностей від порядку; окремо запустити
   `npx tsx --test test/integration/comments.test.ts`; переконатися, що `git status` не містить `*.db`,
   `-wal`, `-shm`, `reports/` або `.stryker-tmp/`.

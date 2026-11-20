@@ -7,7 +7,13 @@ import { after, before, describe, it } from 'node:test';
 
 import type { FastifyInstance } from 'fastify';
 
-import { createTestApp, createUser, DRIVERS, type TestTicket, type TestUser } from './helpers.js';
+import {
+  createTestApp,
+  createUser,
+  DRIVERS,
+  type TestTicket,
+  type TestUser,
+} from '../support/helpers.js';
 
 for (const driver of DRIVERS) {
   describe(`ticket idempotency (${driver})`, () => {

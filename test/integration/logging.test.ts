@@ -1,5 +1,5 @@
 /**
- * Request-scoped контекст і наскрізне логування (spec-02, AC-5; ADR-0002).
+ * Наскрізне логування запиту (spec-02, AC-5; ADR-0002) — integration-рівень.
  */
 
 import assert from 'node:assert/strict';
@@ -7,10 +7,8 @@ import { after, before, describe, it } from 'node:test';
 
 import type { FastifyInstance } from 'fastify';
 
-import { buildApp } from '../src/app.js';
-import { getLogger, getRequestId, getUserId, runWithContext } from '../src/core/context.js';
-
-const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+import { buildApp } from '../../src/app.js';
+import { getLogger, getRequestId } from '../../src/core/context.js';
 
 type LogEntry = Record<string, unknown> & {
   readonly msg?: string;
@@ -39,30 +37,6 @@ const createLogCapture = (): LogCapture => {
         .map((line) => JSON.parse(line) as LogEntry),
   };
 };
-
-describe('AsyncLocalStorage контекст', () => {
-  it('поза запитом аксесори повертають undefined (fallback у логах — "-")', () => {
-    assert.equal(getRequestId(), undefined);
-    assert.equal(getUserId(), undefined);
-  });
-
-  it('паралельні контексти не змішуються', async () => {
-    const seen: string[] = [];
-
-    await Promise.all([
-      runWithContext({ requestId: 'req-a' }, async () => {
-        await delay(15);
-        seen.push(`${getRequestId()}:${getUserId() ?? '-'}`);
-      }),
-      runWithContext({ requestId: 'req-b', userId: 42 }, async () => {
-        await delay(5);
-        seen.push(`${getRequestId()}:${getUserId() ?? '-'}`);
-      }),
-    ]);
-
-    assert.deepEqual(seen.sort(), ['req-a:-', 'req-b:42']);
-  });
-});
 
 describe('наскрізне логування запиту', () => {
   const capture = createLogCapture();
@@ -178,17 +152,12 @@ describe('логування поза контекстом запиту', () => 
     await app.close();
   });
 
-  it('getLogger() повертає безпечний fallback і не кидає', () => {
+  it('getLogger() поза запитом не кидає, а app.log пише requestId "-"', () => {
     assert.doesNotThrow(() => {
-      getLogger().debug({ scope: 'unit' }, 'outside request debug');
       getLogger().info({ scope: 'unit' }, 'outside request info');
-      getLogger().warn({ scope: 'unit' }, 'outside request warn');
-      getLogger().error({ scope: 'unit' }, 'outside request error');
     });
     assert.equal(getRequestId(), undefined);
-  });
 
-  it('app.log поза запитом пише requestId "-"', () => {
     app.log.info({ scope: 'startup' }, 'startup log outside request');
 
     const entry = capture.entries().find((item) => item.msg === 'startup log outside request');
