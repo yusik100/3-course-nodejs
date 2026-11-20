@@ -96,18 +96,18 @@ line/branch/functions, рішення про покращення — за фа�
 
 ## Acceptance Criteria
 
-- [ ] AC-1: `test/` розділено на `unit/`, `integration/`, `e2e/`, `support/`; старі тести перенесені; `comments`
+- [x] AC-1: `test/` розділено на `unit/`, `integration/`, `e2e/`, `support/`; старі тести перенесені; `comments`
       не залежить від порядку; `npm run smoke` запускає лише smoke-тест.
-- [ ] AC-2: `npm run test:unit` не імпортує Fastify/SQLite і покриває всі гілки `tickets.service.ts`, а також
+- [x] AC-2: `npm run test:unit` не імпортує Fastify/SQLite і покриває всі гілки `tickets.service.ts`, а також
       ключові гілки `retry.ts`, `actor.ts`, `context.ts`; використані ручні фейки, без mock-бібліотек.
-- [ ] AC-3: integration-тести працюють на реальному файлі SQLite у тимчасовій теці, перевіряють commit/rollback,
+- [x] AC-3: integration-тести працюють на реальному файлі SQLite у тимчасовій теці, перевіряють commit/rollback,
       FK/CHECK, ідемпотентність і N+1 (≤2; для непорожнього списку рівно 2); після тестів не лишається файлів БД.
-- [ ] AC-4: e2e піднімає реальний HTTP-сервер на `port: 0`, ходить через `fetch()`, проходить повний сценарій і
+- [x] AC-4: e2e піднімає реальний HTTP-сервер на `port: 0`, ходить через `fetch()`, проходить повний сценарій і
       restart persistence; повторний запуск не залежить від попереднього стану чи порту.
-- [ ] AC-5: `npm run coverage` / `make coverage` формує звіт по гілках без порогів і без `src/index.ts`;
+- [x] AC-5: `npm run coverage` / `make coverage` формує звіт по гілках без порогів і без `src/index.ts`;
       `npm run mutation` / `make mutation` мутує рівно 3 файли, не падає через `break` і формує HTML-звіт;
       вижилі мутанти класифіковані на 3 класи, а топ-3 слабких «зелених» тестів підсилено.
-- [ ] AC-6: `npm test` / `make test` проходить **двічі поспіль** без залишкових БД, портів і тестових файлів;
+- [x] AC-6: `npm test` / `make test` проходить **двічі поспіль** без залишкових БД, портів і тестових файлів;
       `pre-push` виконує smoke + unit + typecheck + build; `lint`, `typecheck`, `build`, `format-check` — без помилок.
 
 ## Evidence
