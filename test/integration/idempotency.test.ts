@@ -15,6 +15,18 @@ import {
   type TestUser,
 } from '../support/helpers.js';
 
+type TicketResponse = {
+  readonly id: number;
+  readonly title: string;
+  readonly description: string | null;
+  readonly status: string;
+  readonly priority: string;
+  readonly reporterId: number;
+  readonly assigneeId: number | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+};
+
 for (const driver of DRIVERS) {
   describe(`ticket idempotency (${driver})`, () => {
     let app: FastifyInstance;
@@ -51,10 +63,26 @@ for (const driver of DRIVERS) {
       assert.equal(second.statusCode, 201);
       assert.equal(first.headers['idempotency-replayed'], undefined);
       assert.equal(second.headers['idempotency-replayed'], 'true');
-      assert.equal(second.json<TestTicket>().id, first.json<TestTicket>().id);
+      assert.deepEqual(second.json<TicketResponse>(), first.json<TicketResponse>());
 
       const list = await app.inject({ method: 'GET', url: '/tickets' });
       assert.equal(list.json<TestTicket[]>().length, 1);
+    });
+
+    it('повтор із зайвими пробілами в title дає replay', async () => {
+      const first = await postTicket(
+        { title: '  Spaced ticket  ', description: 'Same body' },
+        'idem-key-spaces',
+      );
+      const second = await postTicket(
+        { title: 'Spaced ticket', description: 'Same body' },
+        'idem-key-spaces',
+      );
+
+      assert.equal(first.statusCode, 201);
+      assert.equal(second.statusCode, 201);
+      assert.equal(second.headers['idempotency-replayed'], 'true');
+      assert.deepEqual(second.json<TicketResponse>(), first.json<TicketResponse>());
     });
 
     it('той самий ключ з іншим тілом → 409 IDEMPOTENCY_KEY_REUSED', async () => {

@@ -94,6 +94,48 @@ describe('withRetry', () => {
     assert.equal(calls, 1);
   });
 
+  it('не ретраїть SQLITE_CONSTRAINT (errcode 19)', () => {
+    const failure = Object.assign(new Error('constraint failed'), { errcode: 19 });
+    let calls = 0;
+
+    assert.throws(
+      () =>
+        withRetry(
+          () => {
+            calls += 1;
+            throw failure;
+          },
+          { backoffMs: 0 },
+        ),
+      (thrown: unknown) => thrown === failure,
+    );
+
+    assert.equal(calls, 1);
+  });
+
+  it('для не-Error обʼєкта з errcode 5 зберігає cause = unknown error', () => {
+    const nonError = { errcode: 5 } as unknown as Error;
+    let calls = 0;
+
+    assert.throws(
+      () =>
+        withRetry(
+          () => {
+            calls += 1;
+            throw nonError;
+          },
+          { attempts: 2, backoffMs: 0 },
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof ServiceUnavailableError);
+        assert.equal(error.details?.['cause'], 'unknown error');
+        return true;
+      },
+    );
+
+    assert.equal(calls, 2);
+  });
+
   it('поважає кастомний attempts і не робить зайвих спроб', () => {
     let calls = 0;
 
@@ -138,6 +180,9 @@ describe('withRetry', () => {
     assert.equal(isRetryableDatabaseError(new Error('SQLITE_LOCKED: another writer')), true);
     assert.equal(isRetryableDatabaseError(new Error('SQL logic error')), false);
     assert.equal(isRetryableDatabaseError('not an error'), false);
+    assert.equal(isRetryableDatabaseError(null), false);
+    assert.equal(isRetryableDatabaseError(undefined), false);
+    assert.equal(isRetryableDatabaseError({ errcode: 19 }), false);
     assert.equal(isRetryableDatabaseError({ errcode: '5' }), false);
   });
 });

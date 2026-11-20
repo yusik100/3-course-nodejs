@@ -114,6 +114,21 @@ describe('TicketsService.create', () => {
     assert.equal(captured.ticket.priority, 'high');
   });
 
+  it('перетворює відсутній опис на null', () => {
+    let captured: CreateTicketIdempotentInput | undefined;
+    const service = createService({
+      createTicketIdempotent: (input) => {
+        captured = input;
+        return { kind: 'created', ticket: makeTicket() };
+      },
+    });
+
+    service.create(1, { title: 'Hello' }, 'key-undefined-description');
+
+    assert.ok(captured !== undefined);
+    assert.equal(captured.ticket.description, null);
+  });
+
   it('повертає replayed=true, якщо репозиторій повернув replay', () => {
     const service = createService({
       createTicketIdempotent: () => ({ kind: 'replayed', ticket: makeTicket() }),
@@ -304,6 +319,20 @@ describe('TicketsService.assign', () => {
   it('кидає NotFound, якщо тикета немає', () => {
     const service = createService();
     expectAppError(() => service.assign(2, 999, null), 'NOT_FOUND');
+  });
+
+  it('кидає NotFound, якщо тикета немає, навіть із невалідним assignee', () => {
+    let updateCalled = false;
+    const service = createService({
+      findById: () => undefined,
+      updateAssignee: (id, assigneeId) => {
+        updateCalled = true;
+        return makeTicket({ id, assigneeId });
+      },
+    });
+
+    expectAppError(() => service.assign(2, 999, 1), 'NOT_FOUND');
+    assert.equal(updateCalled, false);
   });
 
   it('кидає NotFound, якщо виконавця не існує', () => {
