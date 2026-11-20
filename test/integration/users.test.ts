@@ -7,7 +7,7 @@ import { after, before, describe, it } from 'node:test';
 
 import type { FastifyInstance } from 'fastify';
 
-import { createTestApp, DRIVERS, type TestUser } from './helpers.js';
+import { createTestApp, createUser, DRIVERS, type TestUser } from '../support/helpers.js';
 
 for (const driver of DRIVERS) {
   describe(`users (${driver})`, () => {
@@ -77,6 +77,29 @@ for (const driver of DRIVERS) {
 
       assert.equal(response.statusCode, 200);
       assert.equal(response.json<TestUser>().role, 'agent');
+    });
+
+    it('PATCH /users/:id для невідомого id → 404 NOT_FOUND', async () => {
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/users/999',
+        payload: { role: 'agent' },
+      });
+
+      assert.equal(response.statusCode, 404);
+      assert.equal(response.json<{ error: { code: string } }>().error.code, 'NOT_FOUND');
+    });
+
+    it('PATCH /users/:id без полів → 400 VALIDATION_FAILED', async () => {
+      const user = await createUser(app);
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/users/${user.id}`,
+        payload: {},
+      });
+
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.json<{ error: { code: string } }>().error.code, 'VALIDATION_FAILED');
     });
 
     it('невалідне тіло → 400 VALIDATION_FAILED', async () => {

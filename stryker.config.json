@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "node --import tsx --test \"test/unit/**/*.test.ts\""
+  },
+  "mutate": ["src/modules/tickets/tickets.service.ts", "src/db/retry.ts", "src/core/actor.ts"],
+  "coverageAnalysis": "off",
+  "ignoreStatic": false,
+  "reporters": ["clear-text", "progress", "html", "json"],
+  "concurrency": 2,
+  "timeoutMS": 30000,
+  "incremental": true,
+  "tempDirName": ".stryker-tmp"
+}

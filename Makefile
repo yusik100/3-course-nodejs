@@ -7,13 +7,16 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install build smoke typecheck lint lint-fix format format-check
+.PHONY: help install build smoke test coverage mutation typecheck lint lint-fix format format-check
 
 help:
 	@echo Task Tracker API - доступні цілі:
 	@echo   make install       - встановити залежності (npm install)
 	@echo   make build         - зібрати проєкт у dist/ (tsc)
 	@echo   make smoke         - мінімальний smoke-тест (npm run smoke)
+	@echo   make test          - усі рівні тестів: unit, integration, e2e
+	@echo   make coverage      - звіт покриття гілок (Node coverage)
+	@echo   make mutation      - мутаційне тестування (Stryker)
 	@echo   make lint          - перевірити код ESLint
 	@echo   make lint-fix      - ESLint з автовиправленням (--fix)
 	@echo   make format        - відформатувати код Prettier (--write)
@@ -31,6 +34,18 @@ build:
 ## Прогнати мінімальний smoke-тест (GET /health через app.inject)
 smoke:
 	npm run smoke
+
+## Запустити всі рівні тестів (unit, integration, e2e)
+test:
+	npm test
+
+## Сформувати звіт покриття гілок
+coverage:
+	npm run coverage
+
+## Запустити мутаційне тестування
+mutation:
+	npm run mutation
 
 ## Перевірити код ESLint (без змін у файлах)
 lint:
